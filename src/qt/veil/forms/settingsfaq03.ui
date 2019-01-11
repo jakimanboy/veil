@@ -87,13 +87,9 @@ font-size:16px;</string>
 font-size:16px;</string>
      </property>
      <property name="text">
-      <string>Select either Wallet File or Recovery Seed Phrase
+      <string>Select Wallet File
 
-When backing up with Wallet File, use a strong password. Multiple copies can be made and put on different storage devices for redundant data protection.
-
-When backing up with Recovery Seed Phrase, write the 24-word seed phrase in the correct order. Never share your seed phrase with others. Anyone with it will have access to your wallet.
-
-For security reasons, it is strongly not recommended to make a digital backup of your recovery seed phrase in plain text or to copy and paste it.</string>
+When backing up with Wallet File, use a strong password. Multiple copies can be made and put on different storage devices for redundant data protection.</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
@@ -185,9 +181,7 @@ font-size:16px;</string>
 font-size:16px;</string>
      </property>
      <property name="text">
-      <string>When restoring with Wallet File, navigate to your wallet file and input the password used to encrypt it.
-
-When restoring up with Recovery Seed Phrase, please enter words one at a time instead of copying and pasting them.</string>
+      <string>When restoring with Wallet File, navigate to your wallet file and input the password used to encrypt it.</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
