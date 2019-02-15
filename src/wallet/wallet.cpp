@@ -6414,6 +6414,9 @@ bool CWallet::CreateZerocoinSpendTransaction(CAmount nValue, int nSecurityLevel,
                 }
                 break;
             }
+            if (nLockAttempts >= 100) {
+                return error("%s: Failed to create zerocoin spend: Couldn't get access to cs_spendcache lock\n", __func__);
+            }
 
             // Limit size
             unsigned int nBytes = ::GetSerializeSize(txNew, SER_NETWORK, PROTOCOL_VERSION);
@@ -6733,6 +6736,7 @@ void CWallet::PrecomputeSpends()
 
         if (fGlobalUnlockSpendCache) {
             fGlobalUnlockSpendCache = false;
+            MilliSleep(60000); // sleep for 60 seconds because a zerocoin spend of stake is trying to access the cs_spendcache
         }
 
         // Every so often, we want to make sure that any zerocoin spends are removed from the precompute database.

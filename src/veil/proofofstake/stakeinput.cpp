@@ -145,6 +145,8 @@ bool ZerocoinStake::CreateTxIn(CWallet* pwallet, CTxIn& txIn, uint256 hashTxOut)
                                  GetIndexFrom()))
             return error("%s\n", receipt.GetStatusMessage());
         break;
+    } if (nLockAttempts >= 100) {
+        return error("%s: Failed to create zerocoin stake: Couldn't get access to cs_spendcache lock\n", __func__);
     }
 
     return true;
