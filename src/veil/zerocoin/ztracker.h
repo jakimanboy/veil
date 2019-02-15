@@ -56,7 +56,7 @@ public:
     bool UpdateState(const CMintMeta& meta);
     void Clear();
     mutable CCriticalSection cs_spendcache;
-    CoinWitnessData* GetSpendCache(const uint256& hashStake) EXCLUSIVE_LOCKS_REQUIRED(cs_spendcache);
+    CoinWitnessData* GetSpendCache(const uint256& hashStake);
     bool ClearSpendCache() EXCLUSIVE_LOCKS_REQUIRED(cs_spendcache);
 
     static uint8_t GetMintMemFlags(const CMintMeta& mint, int nBestHeight, const std::map<libzerocoin::CoinDenomination, int>& mapMaturity);

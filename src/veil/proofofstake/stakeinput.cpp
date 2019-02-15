@@ -131,23 +131,9 @@ bool ZerocoinStake::CreateTxIn(CWallet* pwallet, CTxIn& txIn, uint256 hashTxOut)
     int nSecurityLevel = 100;
     CZerocoinSpendReceipt receipt;
 
-    int nLockAttempts = 0;
-    while (nLockAttempts < 100) {
-        TRY_LOCK(pwallet->GetZTrackerPointer()->cs_spendcache, lockSpendcache);
-        if (!lockSpendcache) {
-            fGlobalUnlockSpendCache = true;
-            MilliSleep(100);
-            ++nLockAttempts;
-            continue;
-        }
-
-        if (!pwallet->MintToTxIn(mint, nSecurityLevel, hashTxOut, txIn, receipt, libzerocoin::SpendType::STAKE,
-                                 GetIndexFrom()))
-            return error("%s\n", receipt.GetStatusMessage());
-        break;
-    } if (nLockAttempts >= 100) {
-        return error("%s: Failed to create zerocoin stake: Couldn't get access to cs_spendcache lock\n", __func__);
-    }
+    if (!pwallet->MintToTxIn(mint, nSecurityLevel, hashTxOut, txIn, receipt, libzerocoin::SpendType::STAKE,
+                             GetIndexFrom()))
+        return error("%s\n", receipt.GetStatusMessage());
 
     return true;
 }

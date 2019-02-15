@@ -347,12 +347,27 @@ UniValue spendzerocoin(const JSONRPCRequest& request)
 
     std::vector<CZerocoinMint> vMintsSelected;
     CZerocoinSpendReceipt receipt;
-    bool fSuccess;
+    bool fSuccess = false;
 
-    if(params.size() > 4) // Spend to supplied destination address
-        fSuccess = pwallet->SpendZerocoin(nAmount, nSecurityLevel, receipt, vMintsSelected, fMintChange, fMinimizeChange, denomFilter, &dest);
-    else                   // Spend to newly generated local address
-        fSuccess = pwallet->SpendZerocoin(nAmount, nSecurityLevel, receipt, vMintsSelected, fMintChange, fMinimizeChange, denomFilter);
+    fGlobalUnlockSpendCache = true;
+    int nLockAttempts = 0;
+    while (nLockAttempts < 100) {
+        TRY_LOCK(pwallet->GetZTrackerPointer()->cs_spendcache, lockSpendcache);
+        if (!lockSpendcache) {
+            fGlobalUnlockSpendCache = true;
+            MilliSleep(100);
+            ++nLockAttempts;
+            continue;
+        }
+
+        if (params.size() > 4) // Spend to supplied destination address
+            fSuccess = pwallet->SpendZerocoin(nAmount, nSecurityLevel, receipt, vMintsSelected, fMintChange,
+                                              fMinimizeChange, denomFilter, &dest);
+        else                   // Spend to newly generated local address
+            fSuccess = pwallet->SpendZerocoin(nAmount, nSecurityLevel, receipt, vMintsSelected, fMintChange,
+                                              fMinimizeChange, denomFilter);
+        break;
+    }
 
     if (!fSuccess)
         throw JSONRPCError(RPC_WALLET_ERROR, receipt.GetStatusMessage());
@@ -630,15 +645,29 @@ UniValue DoZerocoinSpend(CWallet* pwallet, const CAmount nAmount, bool fMintChan
     CZerocoinSpendReceipt receipt;
     bool fSuccess;
 
-    if(address_str != "") { // Spend to supplied destination address
-        CBitcoinAddress address(address_str);
-        dest = CBitcoinAddress(address_str).Get();
-        if(!address.IsValid())
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid VEIL address");
-        fSuccess = pwallet->SpendZerocoin(nAmount, nSecurityLevel, receipt, vMintsSelected, fMintChange, fMinimizeChange, libzerocoin::CoinDenomination::ZQ_ERROR, &dest);
-    } else                   // Spend to newly generated local address
-        fSuccess = pwallet->SpendZerocoin(nAmount, nSecurityLevel, receipt, vMintsSelected, fMintChange, fMinimizeChange, libzerocoin::CoinDenomination::ZQ_ERROR);
+    fGlobalUnlockSpendCache = true;
+    int nLockAttempts = 0;
+    while (nLockAttempts < 100) {
+        TRY_LOCK(pwallet->GetZTrackerPointer()->cs_spendcache, lockSpendcache);
+        if (!lockSpendcache) {
+            fGlobalUnlockSpendCache = true;
+            MilliSleep(100);
+            ++nLockAttempts;
+            continue;
+        }
 
+        if (address_str != "") { // Spend to supplied destination address
+            CBitcoinAddress address(address_str);
+            dest = CBitcoinAddress(address_str).Get();
+            if (!address.IsValid())
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid VEIL address");
+            fSuccess = pwallet->SpendZerocoin(nAmount, nSecurityLevel, receipt, vMintsSelected, fMintChange,
+                                              fMinimizeChange, libzerocoin::CoinDenomination::ZQ_ERROR, &dest);
+        } else                   // Spend to newly generated local address
+            fSuccess = pwallet->SpendZerocoin(nAmount, nSecurityLevel, receipt, vMintsSelected, fMintChange,
+                                              fMinimizeChange, libzerocoin::CoinDenomination::ZQ_ERROR);
+        break;
+    }
     if (!fSuccess)
         throw JSONRPCError(RPC_WALLET_ERROR, receipt.GetStatusMessage());
 

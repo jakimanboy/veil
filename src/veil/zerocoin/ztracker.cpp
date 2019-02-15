@@ -531,7 +531,6 @@ std::set<CMintMeta> CzTracker::ListMints(bool fUnusedOnly, bool fMatureOnly, boo
 
 CoinWitnessData* CzTracker::GetSpendCache(const uint256& hashStake)
 {
-    AssertLockHeld(cs_spendcache);
     if (!mapStakeCache.count(hashStake)) {
         std::unique_ptr<CoinWitnessData> uptr(new CoinWitnessData());
         mapStakeCache.insert(std::make_pair(hashStake, std::move(uptr)));

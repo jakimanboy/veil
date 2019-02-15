@@ -5466,7 +5466,6 @@ bool CWallet::MintToTxIn(CZerocoinMint zerocoinSelected, int nSecurityLevel, con
 {
 
     // In order to use the spendcache, we need to make sure that the lock is held
-    AssertLockHeld(zTracker->cs_spendcache);
     CMintMeta meta = zTracker->Get(GetSerialHash(zerocoinSelected.GetSerialNumber()));
     CoinWitnessData *coinwitness = zTracker->GetSpendCache(meta.hashStake);
 
