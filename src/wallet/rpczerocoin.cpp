@@ -351,12 +351,27 @@ UniValue spendzerocoin(const JSONRPCRequest& request)
 
     std::vector<CZerocoinMint> vMintsSelected;
     CZerocoinSpendReceipt receipt;
-    bool fSuccess;
+    bool fSuccess = false;
 
-    if(params.size() > 4) // Spend to supplied destination address
-        fSuccess = pwallet->SpendZerocoin(nAmount, nSecurityLevel, receipt, vMintsSelected, fMintChange, fMinimizeChange, denomFilter, &dest);
-    else                   // Spend to newly generated local address
-        fSuccess = pwallet->SpendZerocoin(nAmount, nSecurityLevel, receipt, vMintsSelected, fMintChange, fMinimizeChange, denomFilter);
+    fGlobalUnlockSpendCache = true;
+    int nLockAttempts = 0;
+    while (nLockAttempts < 100) {
+        TRY_LOCK(pwallet->GetZTrackerPointer()->cs_spendcache, lockSpendcache);
+        if (!lockSpendcache) {
+            fGlobalUnlockSpendCache = true;
+            MilliSleep(100);
+            ++nLockAttempts;
+            continue;
+        }
+
+        if (params.size() > 4) // Spend to supplied destination address
+            fSuccess = pwallet->SpendZerocoin(nAmount, nSecurityLevel, receipt, vMintsSelected, fMintChange,
+                                              fMinimizeChange, denomFilter, &dest);
+        else                   // Spend to newly generated local address
+            fSuccess = pwallet->SpendZerocoin(nAmount, nSecurityLevel, receipt, vMintsSelected, fMintChange,
+                                              fMinimizeChange, denomFilter);
+        break;
+    }
 
     if (!fSuccess)
         throw JSONRPCError(RPC_WALLET_ERROR, receipt.GetStatusMessage());
@@ -634,15 +649,29 @@ UniValue DoZerocoinSpend(CWallet* pwallet, const CAmount nAmount, bool fMintChan
     CZerocoinSpendReceipt receipt;
     bool fSuccess;
 
-    if(address_str != "") { // Spend to supplied destination address
-        CBitcoinAddress address(address_str);
-        dest = CBitcoinAddress(address_str).Get();
-        if(!address.IsValid())
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid VEIL address");
-        fSuccess = pwallet->SpendZerocoin(nAmount, nSecurityLevel, receipt, vMintsSelected, fMintChange, fMinimizeChange, libzerocoin::CoinDenomination::ZQ_ERROR, &dest);
-    } else                   // Spend to newly generated local address
-        fSuccess = pwallet->SpendZerocoin(nAmount, nSecurityLevel, receipt, vMintsSelected, fMintChange, fMinimizeChange, libzerocoin::CoinDenomination::ZQ_ERROR);
+    fGlobalUnlockSpendCache = true;
+    int nLockAttempts = 0;
+    while (nLockAttempts < 100) {
+        TRY_LOCK(pwallet->GetZTrackerPointer()->cs_spendcache, lockSpendcache);
+        if (!lockSpendcache) {
+            fGlobalUnlockSpendCache = true;
+            MilliSleep(100);
+            ++nLockAttempts;
+            continue;
+        }
 
+        if (address_str != "") { // Spend to supplied destination address
+            CBitcoinAddress address(address_str);
+            dest = CBitcoinAddress(address_str).Get();
+            if (!address.IsValid())
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid VEIL address");
+            fSuccess = pwallet->SpendZerocoin(nAmount, nSecurityLevel, receipt, vMintsSelected, fMintChange,
+                                              fMinimizeChange, libzerocoin::CoinDenomination::ZQ_ERROR, &dest);
+        } else                   // Spend to newly generated local address
+            fSuccess = pwallet->SpendZerocoin(nAmount, nSecurityLevel, receipt, vMintsSelected, fMintChange,
+                                              fMinimizeChange, libzerocoin::CoinDenomination::ZQ_ERROR);
+        break;
+    }
     if (!fSuccess)
         throw JSONRPCError(RPC_WALLET_ERROR, receipt.GetStatusMessage());
 
@@ -1333,6 +1362,49 @@ UniValue generatemintlist(const JSONRPCRequest& request)
     return arrRet;
 }
 
+UniValue showspendcaching(const JSONRPCRequest& request)
+{
+    std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
+    CWallet* const pwallet = wallet.get();
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp))
+        return NullUniValue;
+    UniValue params = request.params;
+    if(request.fHelp || params.size() != 0)
+        throw runtime_error(
+                "generatemintlist\n"
+                "\nShow spendable zerocoins and their precomputed zero knowledge proof status\n" +
+                HelpRequiringPassphrase(pwallet));
+
+    EnsureWalletIsUnlocked(pwallet);
+
+    auto ztracker = pwallet->GetZTrackerPointer();
+
+    std::set<CMintMeta> setMints = ztracker->ListMints(true, true, false);
+    UniValue arrRet(UniValue::VARR);
+    int nHeightChain = chainActive.Height();
+    for (const CMintMeta& mint : setMints) {
+        UniValue obj(UniValue::VOBJ);
+        obj.pushKV("pubcoinhash", mint.hashPubcoin.GetHex());
+        obj.pushKV("height_from", mint.nHeight);
+
+        CoinWitnessData* witnessData = ztracker->GetSpendCache(mint.hashStake);
+        if (!witnessData)
+            continue;
+
+        obj.pushKV("computed_to", witnessData->nHeightAccEnd);
+        double nTotalToAccumulate = nHeightChain - mint.nHeight;
+        double nAccumulated = witnessData->nHeightAccEnd - mint.nHeight;
+        double nComputePercent = nAccumulated/nTotalToAccumulate;
+        if (nComputePercent < 0)
+            nComputePercent = 0;
+        obj.pushKV("percent_precompute", nComputePercent);
+        arrRet.push_back(obj);
+    }
+
+    return arrRet;
+}
+
+
 UniValue deterministiczerocoinstate(const JSONRPCRequest& request)
 {
     std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
@@ -1368,6 +1440,8 @@ UniValue deterministiczerocoinstate(const JSONRPCRequest& request)
 
     return obj;
 }
+
+
 
 void static SearchThread(CzWallet* zwallet, int nCountStart, int nCountEnd)
 {
@@ -1482,6 +1556,7 @@ static const CRPCCommand commands[] =
     { "zerocoin",           "listmintedzerocoins",              &listmintedzerocoins,           {"fVerbose", "vMatureOnly"} },
     { "zerocoin",           "lookupzerocoin",                   &lookupzerocoin,                {"id_type", "id"} },
     { "zerocoin",           "getzerocoinbalance",               &getzerocoinbalance,            {} },
+    { "zerocoin",           "showspendcaching",               &showspendcaching,            {} },
 };
 
 

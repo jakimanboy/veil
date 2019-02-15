@@ -327,7 +327,23 @@ public:
                                CTxDestination* addressTo = NULL) override
     {
         auto pending = MakeUnique<PendingWalletTxImpl>(m_wallet);
-        if (!m_wallet.SpendZerocoin(nValue, nSecurityLevel, receipt, vMintsSelected, fMintChange, fMinimizeChange, libzerocoin::CoinDenomination::ZQ_ERROR, addressTo))
+
+        fGlobalUnlockSpendCache = true;
+        int nLockAttempts = 0;
+        while (nLockAttempts < 100) {
+            TRY_LOCK(m_wallet.GetZTrackerPointer()->cs_spendcache, lockSpendcache);
+            if (!lockSpendcache) {
+                fGlobalUnlockSpendCache = true;
+                MilliSleep(100);
+                ++nLockAttempts;
+                continue;
+            }
+
+            if (!m_wallet.SpendZerocoin(nValue, nSecurityLevel, receipt, vMintsSelected, fMintChange, fMinimizeChange,
+                                        libzerocoin::CoinDenomination::ZQ_ERROR, addressTo))
+                return {};
+        }
+        if (nLockAttempts == 100)
             return {};
         auto vtx = receipt.GetTransactions();
         pending->m_tx = vtx[0];

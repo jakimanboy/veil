@@ -130,7 +130,9 @@ bool ZerocoinStake::CreateTxIn(CWallet* pwallet, CTxIn& txIn, uint256 hashTxOut)
 
     int nSecurityLevel = 100;
     CZerocoinSpendReceipt receipt;
-    if (!pwallet->MintToTxIn(mint, nSecurityLevel, hashTxOut, txIn, receipt, libzerocoin::SpendType::STAKE, GetIndexFrom()))
+
+    if (!pwallet->MintToTxIn(mint, nSecurityLevel, hashTxOut, txIn, receipt, libzerocoin::SpendType::STAKE,
+                             GetIndexFrom()))
         return error("%s\n", receipt.GetStatusMessage());
 
     return true;
@@ -181,4 +183,9 @@ bool ZerocoinStake::MarkSpent(CWallet *pwallet, const uint256& txid)
 
     zTracker->SetPubcoinUsed(meta.hashPubcoin, txid);
     return true;
+}
+
+uint256 ZerocoinStake::GetSerialHash()
+{
+    return hashSerial;
 }
